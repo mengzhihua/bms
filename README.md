@@ -16,13 +16,28 @@ OTWB 供应链平台中的计费与结算中枢：接收 WMS / TMS / OMS 的业�
 | 报表 | 工作台（待计费/失败单据、本月 AR/AP、未对账、应收/应付余额、逾期、即将到期合同、趋势、Top 客户）、费用汇总、费用项目构成、收入成本毛利、账龄分析、结算对象台账、对账单 CSV 导出 |
 | 系统管理 | 用户与角色（ADMIN / OPERATOR / VIEWER）、操作日志 |
 
-## 目录
+## 技术栈与目录
+
+- 后端：Java 17、Spring Boot 2.7、MyBatis-Plus 3.5、H2（开发）/ MySQL 8（生产）、Bearer Token 认证
+- 前端：Vue 3、Vite、Element Plus、Vue Router、Axios
 
 ```text
-backend/   Spring Boot 2.7 + MyBatis-Plus 后端，端口 8080
-frontend/  Vue 3 + Vite + Element Plus 前端，端口 5173（/api 代理到后端）
-scripts/   smoke.sh 端到端冒烟脚本
+backend/
+  src/main/java/com/bms/
+    basic/        结算对象 / 仓库 / 费用项目
+    contract/     合同、费率规则与阶梯
+    billing/      业务单据、计费引擎 RatingEngine、费用明细
+    settlement/   对账单 / 发票 / 收付款核销
+    integration/  Open API（WMS/TMS/OMS 推送）、集成日志
+    report/       工作台与经营报表
+    system/       用户、角色权限 AccessPolicy、令牌、操作日志
+    common/       统一响应 R、异常处理、CSV、编号生成
+  src/main/resources/schema.sql, data.sql   幂等建表与演示数据
+ frontend/src/views/   Dashboard、basic、contract、billing、settlement、integration、report、system
+ scripts/smoke.sh      端到端冒烟脚本
 ```
+
+端口：后端 8080，前端开发服务器 5173（`/api` 代理到后端）。
 
 ## 快速开始
 
@@ -32,20 +47,22 @@ scripts/   smoke.sh 端到端冒烟脚本
 
 ```bash
 cd backend
-mvn spring-boot:run
+BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key mvn spring-boot:run
 ```
 
 默认 H2 文件库 `backend/data/bms`，启动时自动执行 `schema.sql`（建表）与 `data.sql`（幂等演示数据：
-客户/承运商/供应商、仓库、费用项目、AR/AP 合同及费率规则与阶梯）。默认管理员 `admin / admin123`。
-MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`）。
+客户/承运商/供应商、仓库、费用项目、AR/AP 合同及费率规则与阶梯）。首次启动以 `BMS_ADMIN_PASSWORD` 创建 `admin`；
+未设置时会随机生成一次性初始口令并打印到启动日志。
+MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`），
+`schema.sql` / `data.sql` 均为幂等脚本（`CREATE TABLE IF NOT EXISTS`、索引随表定义），可重复启动。
 
 主要环境变量：
 
 | 变量 | 说明 |
 | --- | --- |
 | `BMS_AUTH_SECRET` / `BMS_TOKEN_TTL` | 登录令牌签名密钥与有效期 |
-| `BMS_ADMIN_PASSWORD` | 首次启动初始化的管理员密码 |
-| `BMS_OPEN_API_KEY` | `/api/open/**` 开放接口的 `X-Api-Key`（默认 `bms-open-key`，生产必须修改） |
+| `BMS_ADMIN_PASSWORD` | 首次启动初始化的管理员密码（为空则随机生成并输出到日志） |
+| `BMS_OPEN_API_KEY` | `/api/open/**` 开放接口的 `X-Api-Key`（未设置时开放接口全部拒绝） |
 | `BMS_CORS_ORIGINS` / `BMS_H2_CONSOLE` | 跨域来源、是否开启 H2 控制台 |
 
 ### 前端
@@ -57,11 +74,46 @@ npm run dev      # http://localhost:5173
 npm run build
 ```
 
+### 登录与权限
+
+| 角色 | 权限 |
+| --- | --- |
+| `ADMIN` | 全部操作，含用户管理、操作日志（`/api/system/**` 仅 ADMIN 可访问） |
+| `OPERATOR` | 读取全部业务数据；可维护合同、单据、费用、对账、结算；不可修改基础数据 |
+| `VIEWER` | 只读 |
+
+前端登录后令牌保存在浏览器本地，`BMS_AUTH_SECRET` 未设置时每次重启后需重新登录。
+
+### Open API（上游系统推送）
+
+上游 WMS / TMS / OMS 以 `X-Api-Key: $BMS_OPEN_API_KEY` 调用：
+
+```text
+POST /api/open/wms/docs   POST /api/open/tms/docs   POST /api/open/oms/docs
+GET  /api/open/docs/{source}/{extRef}
+```
+
+请求体为单据数组，`source + extRef` 幂等（重复推送返回已有单据）：
+
+```json
+[{
+  "extRef": "OUT-20260907-001", "bizType": "OUTBOUND", "customerCode": "CUST-001",
+  "supplierCode": null, "warehouseCode": "WH-SH", "bizDate": "2026-09-07",
+  "orders": 1, "lines": 5, "qty": 120, "boxes": 12, "pallets": 2,
+  "weight": 350.5, "volume": 2.4, "distance": null, "days": null,
+  "origin": null, "destination": null, "remark": ""
+}]
+```
+
+`bizType` 取值 `INBOUND / OUTBOUND / STORAGE / TRANSPORT / VAS / RETURN`（TMS 推送缺省为 `TRANSPORT`）。
+响应逐条返回 `docNo / billStatus(BILLED|FAILED) / arAmount / apAmount / error`。前端「系统集成 → 开放接口说明」页有同样的说明与示例。
+
 ### 测试与冒烟
 
 ```bash
-cd backend && mvn test                 # 计费引擎/流程测试
-scripts/smoke.sh [http://localhost:8080]   # 需要后端已启动，依赖 curl / jq / bc
+cd backend && mvn test                 # 计费引擎/流程/并发幂等/权限测试
+BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key \
+  scripts/smoke.sh [http://localhost:8080]   # 需要后端已启动，依赖 curl / jq
 ```
 
 冒烟流程：登录 → 基础数据/合同 → WMS 出库单、TMS 运单推送并自动计费（幂等、无合同失败）→ 手工费用 →
@@ -74,4 +126,18 @@ scripts/smoke.sh [http://localhost:8080]   # 需要后端已启动，依赖 curl
 - 同一合同下多条规则匹配时按 `priority` 取最优；`warehouseCode` 为空的规则适用所有仓库。
 - 阶梯 (TIERED)：按总量落入区间的单价 × 总量；累进 (PROGRESSIVE)：每段分别计价后求和；
   首段 `fromQty=0` 且 `toQty>0` 的累进段作为起步价整段收取。
+- 同一合同、同一费用项目只会产生一条自动费用：优先级高者胜出，同优先级时仓库专用规则优先于通用规则。
+- 任一规则计算失败时单据整体标记 `FAILED` 且不保留部分费用，修正合同后可重算。
 - 金额四舍五入保留 2 位，税额 = 不含税 × 合同税率（费用项目默认税率作为手工费用默认值）。
+
+## 单据与状态流转
+
+```text
+业务单据  PENDING → BILLED | FAILED | IGNORED          （重算 / 忽略 / 恢复）
+费用明细  NEW → STATEMENTED → SETTLED ；仅 NEW 可作废为 CANCELLED
+对账单    DRAFT → CONFIRMED → SETTLED ；DRAFT/CONFIRMED（未开票未收款）可退回 DISPUTED 修改后再确认；未结清可 CANCELLED
+发票      ISSUED → CANCELLED（开票金额不得超过对账单剩余可开票金额）
+收付款    登记 → 核销到同方向、同结算对象的已确认对账单 → 对账单全额核销后自动 SETTLED
+```
+
+对账单取消时其费用回到 `NEW` 可再次对账；已核销的收付款须先反核销才能删除。

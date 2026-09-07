@@ -34,6 +34,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public R<Void> other(Exception e) {
         log.error("Unhandled error", e);
-        return R.fail(500, e.getMessage());
+        return R.fail(500, "服务内部错误，请联系管理员或查看服务日志");
     }
 }

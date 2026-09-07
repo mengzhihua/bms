@@ -65,15 +65,27 @@ public class TokenService {
         if (!MessageDigest.isEqual(sig, sign(body))) {
             return null;
         }
-        String[] parts = new String(Base64.getUrlDecoder().decode(body), StandardCharsets.UTF_8).split(":", 3);
+        String[] parts;
+        try {
+            parts = new String(Base64.getUrlDecoder().decode(body), StandardCharsets.UTF_8).split(":", 3);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
         if (parts.length != 3) {
             return null;
         }
-        long exp = Long.parseLong(parts[2]);
+        long userId;
+        long exp;
+        try {
+            userId = Long.parseLong(parts[0]);
+            exp = Long.parseLong(parts[2]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
         if (exp < System.currentTimeMillis()) {
             return null;
         }
-        return new Principal(Long.parseLong(parts[0]), parts[1], exp);
+        return new Principal(userId, parts[1], exp);
     }
 
     private byte[] sign(String body) {

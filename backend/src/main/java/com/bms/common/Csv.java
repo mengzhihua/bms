@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -52,55 +53,61 @@ public final class Csv {
         sb.append("\r\n");
     }
 
-    /** Parses CSV rows (handles quotes, strips BOM); first row is header. */
+    /** Parses CSV rows (handles quotes, quoted newlines, strips BOM); first row is header. */
     public static List<String[]> read(InputStream in) throws IOException {
         List<String[]> rows = new ArrayList<>();
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            String line;
+        try (Reader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            List<String> row = new ArrayList<>();
+            StringBuilder cur = new StringBuilder();
+            boolean quoted = false;
             boolean first = true;
-            while ((line = r.readLine()) != null) {
+            int ch;
+            while ((ch = r.read()) != -1) {
+                char c = (char) ch;
                 if (first) {
                     first = false;
-                    if (line.startsWith("\uFEFF")) {
-                        line = line.substring(1);
+                    if (c == '\uFEFF') {
+                        continue;
                     }
                 }
-                if (line.trim().isEmpty()) {
-                    continue;
+                if (quoted) {
+                    if (c == '"') {
+                        r.mark(1);
+                        int next = r.read();
+                        if (next == '"') {
+                            cur.append('"');
+                        } else {
+                            quoted = false;
+                            if (next != -1) {
+                                r.reset();
+                            }
+                        }
+                    } else {
+                        cur.append(c);
+                    }
+                } else if (c == '"') {
+                    quoted = true;
+                } else if (c == ',') {
+                    row.add(cur.toString().trim());
+                    cur.setLength(0);
+                } else if (c == '\n') {
+                    endRow(rows, row, cur);
+                } else if (c != '\r') {
+                    cur.append(c);
                 }
-                rows.add(split(line));
             }
+            endRow(rows, row, cur);
         }
         return rows;
     }
 
-    private static String[] split(String line) {
-        List<String> out = new ArrayList<>();
-        StringBuilder cur = new StringBuilder();
-        boolean quoted = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (quoted) {
-                if (c == '"') {
-                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                        cur.append('"');
-                        i++;
-                    } else {
-                        quoted = false;
-                    }
-                } else {
-                    cur.append(c);
-                }
-            } else if (c == '"') {
-                quoted = true;
-            } else if (c == ',') {
-                out.add(cur.toString().trim());
-                cur.setLength(0);
-            } else {
-                cur.append(c);
-            }
+    private static void endRow(List<String[]> rows, List<String> row, StringBuilder cur) {
+        row.add(cur.toString().trim());
+        cur.setLength(0);
+        boolean blank = row.stream().allMatch(String::isEmpty);
+        if (!blank) {
+            rows.add(row.toArray(new String[0]));
         }
-        out.add(cur.toString().trim());
-        return out.toArray(new String[0]);
+        row.clear();
     }
 }
