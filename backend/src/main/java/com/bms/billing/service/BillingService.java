@@ -17,11 +17,13 @@ import com.bms.common.BizException;
 import com.bms.common.CodeGenerator;
 import com.bms.contract.dto.RateRuleDetail;
 import com.bms.contract.entity.Contract;
+import com.bms.contract.entity.RateRule;
 import com.bms.contract.service.ContractService;
 import com.bms.system.auth.CurrentUser;
 import com.bms.system.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +31,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -100,7 +104,16 @@ public class BillingService {
         if (d.getDays() == null) {
             d.setDays(1);
         }
-        docMapper.insert(d);
+        try {
+            docMapper.insert(d);
+        } catch (DuplicateKeyException e) {
+            BizDoc exist = docMapper.selectOne(new LambdaQueryWrapper<BizDoc>()
+                    .eq(BizDoc::getSource, d.getSource()).eq(BizDoc::getExtRef, d.getExtRef()).last("limit 1 for update"));
+            if (exist == null) {
+                throw e;
+            }
+            return exist;
+        }
         if (autoBill) {
             bill(d.getDocNo());
         }
@@ -156,6 +169,9 @@ public class BillingService {
         d.setArAmount(ar);
         d.setApAmount(ap);
         if (!problems.isEmpty()) {
+            feeMapper.delete(new LambdaQueryWrapper<Fee>().eq(Fee::getDocNo, docNo).eq(Fee::getSource, "AUTO"));
+            d.setArAmount(BigDecimal.ZERO);
+            d.setApAmount(BigDecimal.ZERO);
             d.setBillStatus(FAILED);
             d.setFailReason(String.join("; ", problems));
         } else {
@@ -176,14 +192,7 @@ public class BillingService {
         BigDecimal total = BigDecimal.ZERO;
         int matched = 0;
         for (Contract c : contracts) {
-            for (RateRuleDetail rd : contractService.rules(c.getId())) {
-                if (rd.getRule().getStatus() == null || rd.getRule().getStatus() != 1
-                        || !rd.getRule().getBizType().equals(d.getBizType())) {
-                    continue;
-                }
-                if (rd.getRule().getWarehouseCode() != null && !rd.getRule().getWarehouseCode().equals(d.getWarehouseCode())) {
-                    continue;
-                }
+            for (RateRuleDetail rd : selectRules(contractService.rules(c.getId()), d)) {
                 matched++;
                 try {
                     RatingEngine.Result r = RatingEngine.rate(rd.getRule(), rd.getTiers(), d);
@@ -214,6 +223,34 @@ public class BillingService {
             problems.add(direction + " 合同无匹配 " + d.getBizType() + " 费率(" + partnerCode + ")");
         }
         return total;
+    }
+
+    /** 同一合同内，每个费用项目只取一条最优规则：优先级高者优先，同优先级时仓库专用规则优先于通用规则 */
+    public static List<RateRuleDetail> selectRules(List<RateRuleDetail> rules, BizDoc d) {
+        Map<String, RateRuleDetail> best = new LinkedHashMap<>();
+        for (RateRuleDetail rd : rules) {
+            RateRule r = rd.getRule();
+            if (r.getStatus() == null || r.getStatus() != 1 || !r.getBizType().equals(d.getBizType())) {
+                continue;
+            }
+            if (r.getWarehouseCode() != null && !r.getWarehouseCode().equals(d.getWarehouseCode())) {
+                continue;
+            }
+            RateRuleDetail cur = best.get(r.getChargeItemCode());
+            if (cur == null || better(r, cur.getRule())) {
+                best.put(r.getChargeItemCode(), rd);
+            }
+        }
+        return new ArrayList<>(best.values());
+    }
+
+    private static boolean better(RateRule a, RateRule b) {
+        int pa = a.getPriority() == null ? 0 : a.getPriority();
+        int pb = b.getPriority() == null ? 0 : b.getPriority();
+        if (pa != pb) {
+            return pa > pb;
+        }
+        return a.getWarehouseCode() != null && b.getWarehouseCode() == null;
     }
 
     private void insertFee(Fee f, BigDecimal amount, BigDecimal taxRate) {

@@ -62,9 +62,9 @@ CREATE TABLE IF NOT EXISTS bms_contract (
   remark VARCHAR(500),
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  CONSTRAINT uk_contract_no UNIQUE (contract_no)
+  CONSTRAINT uk_contract_no UNIQUE (contract_no),
+  KEY idx_contract_partner (partner_code, direction, status)
 );
-CREATE INDEX idx_contract_partner ON bms_contract (partner_code, direction, status);
 
 -- 费率规则：某合同下、某业务类型、某费用项目如何计费
 CREATE TABLE IF NOT EXISTS bms_rate_rule (
@@ -82,9 +82,9 @@ CREATE TABLE IF NOT EXISTS bms_rate_rule (
   status INT DEFAULT 1,
   remark VARCHAR(255),
   created_at TIMESTAMP,
-  updated_at TIMESTAMP
+  updated_at TIMESTAMP,
+  KEY idx_rate_rule_contract (contract_id, biz_type)
 );
-CREATE INDEX idx_rate_rule_contract ON bms_rate_rule (contract_id, biz_type);
 
 CREATE TABLE IF NOT EXISTS bms_rate_tier (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -93,9 +93,9 @@ CREATE TABLE IF NOT EXISTS bms_rate_tier (
   to_qty DECIMAL(14,4),                 -- 区间上限（含），空=无上限
   price DECIMAL(14,4) NOT NULL,
   created_at TIMESTAMP,
-  updated_at TIMESTAMP
+  updated_at TIMESTAMP,
+  KEY idx_rate_tier_rule (rule_id)
 );
-CREATE INDEX idx_rate_tier_rule ON bms_rate_tier (rule_id);
 
 -- ===================== 业务单据（计费来源） =====================
 CREATE TABLE IF NOT EXISTS bms_biz_doc (
@@ -126,11 +126,11 @@ CREATE TABLE IF NOT EXISTS bms_biz_doc (
   remark VARCHAR(255),
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  CONSTRAINT uk_biz_doc_no UNIQUE (doc_no)
+  CONSTRAINT uk_biz_doc_no UNIQUE (doc_no),
+  UNIQUE KEY uk_biz_doc_ref (source, ext_ref),
+  KEY idx_biz_doc_customer (customer_code, biz_date),
+  KEY idx_biz_doc_status (bill_status)
 );
-CREATE INDEX idx_biz_doc_ref ON bms_biz_doc (source, ext_ref);
-CREATE INDEX idx_biz_doc_customer ON bms_biz_doc (customer_code, biz_date);
-CREATE INDEX idx_biz_doc_status ON bms_biz_doc (bill_status);
 
 -- ===================== 费用明细 =====================
 CREATE TABLE IF NOT EXISTS bms_fee (
@@ -160,11 +160,11 @@ CREATE TABLE IF NOT EXISTS bms_fee (
   created_by VARCHAR(64),
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  CONSTRAINT uk_fee_no UNIQUE (fee_no)
+  CONSTRAINT uk_fee_no UNIQUE (fee_no),
+  KEY idx_fee_partner (direction, partner_code, status, biz_date),
+  KEY idx_fee_doc (doc_no),
+  KEY idx_fee_statement (statement_no)
 );
-CREATE INDEX idx_fee_partner ON bms_fee (direction, partner_code, status, biz_date);
-CREATE INDEX idx_fee_doc ON bms_fee (doc_no);
-CREATE INDEX idx_fee_statement ON bms_fee (statement_no);
 
 -- ===================== 对账 / 发票 / 收付款 =====================
 CREATE TABLE IF NOT EXISTS bms_statement (
@@ -189,9 +189,9 @@ CREATE TABLE IF NOT EXISTS bms_statement (
   remark VARCHAR(500),
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  CONSTRAINT uk_statement_no UNIQUE (statement_no)
+  CONSTRAINT uk_statement_no UNIQUE (statement_no),
+  KEY idx_statement_partner (direction, partner_code, status)
 );
-CREATE INDEX idx_statement_partner ON bms_statement (direction, partner_code, status);
 
 CREATE TABLE IF NOT EXISTS bms_statement_log (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -201,9 +201,9 @@ CREATE TABLE IF NOT EXISTS bms_statement_log (
   to_status VARCHAR(16),
   operator VARCHAR(64),
   remark VARCHAR(500),
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  KEY idx_statement_log_no (statement_no)
 );
-CREATE INDEX idx_statement_log_no ON bms_statement_log (statement_no);
 
 CREATE TABLE IF NOT EXISTS bms_invoice (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -221,9 +221,9 @@ CREATE TABLE IF NOT EXISTS bms_invoice (
   remark VARCHAR(255),
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  CONSTRAINT uk_invoice_no UNIQUE (invoice_no)
+  CONSTRAINT uk_invoice_no UNIQUE (invoice_no),
+  KEY idx_invoice_statement (statement_no)
 );
-CREATE INDEX idx_invoice_statement ON bms_invoice (statement_no);
 
 CREATE TABLE IF NOT EXISTS bms_payment (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -249,9 +249,9 @@ CREATE TABLE IF NOT EXISTS bms_payment_apply (
   amount DECIMAL(14,2) NOT NULL,
   operator VARCHAR(64),
   created_at TIMESTAMP,
-  updated_at TIMESTAMP
+  updated_at TIMESTAMP,
+  KEY idx_payment_apply_stmt (statement_no)
 );
-CREATE INDEX idx_payment_apply_stmt ON bms_payment_apply (statement_no);
 
 -- ===================== 集成 =====================
 CREATE TABLE IF NOT EXISTS bms_integration_log (
@@ -265,9 +265,9 @@ CREATE TABLE IF NOT EXISTS bms_integration_log (
   success INT DEFAULT 1,
   error_msg VARCHAR(500),
   created_at TIMESTAMP,
-  updated_at TIMESTAMP
+  updated_at TIMESTAMP,
+  KEY idx_integration_ref (ref_no)
 );
-CREATE INDEX idx_integration_ref ON bms_integration_log (ref_no);
 
 -- ===================== 系统 =====================
 CREATE TABLE IF NOT EXISTS bms_user (
@@ -299,6 +299,6 @@ CREATE TABLE IF NOT EXISTS bms_op_log (
   http_status INT,
   cost_ms INT,
   client_ip VARCHAR(64),
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  KEY idx_op_log_created (created_at)
 );
-CREATE INDEX idx_op_log_created ON bms_op_log (created_at);

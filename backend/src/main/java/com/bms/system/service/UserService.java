@@ -15,8 +15,10 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
 @Slf4j
@@ -28,23 +30,37 @@ public class UserService implements ApplicationRunner {
     private final UserMapper userMapper;
     private final TokenService tokenService;
 
-    @Value("${bms.auth.admin-password:admin123}")
+    @Value("${bms.auth.admin-password:}")
     private String initialAdminPassword;
 
-    /** 首次启动无任何用户时创建 admin 账号（口令来自 bms.auth.admin-password / BMS_ADMIN_PASSWORD） */
+    /**
+     * 首次启动无任何用户时创建 admin 账号。口令来自 bms.auth.admin-password / BMS_ADMIN_PASSWORD；
+     * 未配置时随机生成一次性初始口令并输出到启动日志，避免公开的固定默认口令。
+     */
     @Override
     public void run(ApplicationArguments args) {
         if (userMapper.selectCount(null) > 0) {
             return;
         }
+        String password = initialAdminPassword;
+        boolean generated = password == null || password.isEmpty();
+        if (generated) {
+            byte[] buf = new byte[12];
+            new SecureRandom().nextBytes(buf);
+            password = Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+        }
         User admin = new User();
         admin.setUsername("admin");
-        admin.setPassword(PasswordHasher.hash(initialAdminPassword));
+        admin.setPassword(PasswordHasher.hash(password));
         admin.setRealName("系统管理员");
         admin.setRole(User.ADMIN);
         admin.setStatus(1);
         userMapper.insert(admin);
-        log.info("已初始化管理员账号 admin");
+        if (generated) {
+            log.warn("未配置 BMS_ADMIN_PASSWORD，已为 admin 生成一次性初始口令: {}  请登录后立即修改", password);
+        } else {
+            log.info("已初始化管理员账号 admin");
+        }
     }
 
     @Data

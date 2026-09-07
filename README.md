@@ -32,11 +32,12 @@ scripts/   smoke.sh 端到端冒烟脚本
 
 ```bash
 cd backend
-mvn spring-boot:run
+BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key mvn spring-boot:run
 ```
 
 默认 H2 文件库 `backend/data/bms`，启动时自动执行 `schema.sql`（建表）与 `data.sql`（幂等演示数据：
-客户/承运商/供应商、仓库、费用项目、AR/AP 合同及费率规则与阶梯）。默认管理员 `admin / admin123`。
+客户/承运商/供应商、仓库、费用项目、AR/AP 合同及费率规则与阶梯）。首次启动以 `BMS_ADMIN_PASSWORD` 创建 `admin`；
+未设置时会随机生成一次性初始口令并打印到启动日志。
 MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`）。
 
 主要环境变量：
@@ -44,8 +45,8 @@ MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/
 | 变量 | 说明 |
 | --- | --- |
 | `BMS_AUTH_SECRET` / `BMS_TOKEN_TTL` | 登录令牌签名密钥与有效期 |
-| `BMS_ADMIN_PASSWORD` | 首次启动初始化的管理员密码 |
-| `BMS_OPEN_API_KEY` | `/api/open/**` 开放接口的 `X-Api-Key`（默认 `bms-open-key`，生产必须修改） |
+| `BMS_ADMIN_PASSWORD` | 首次启动初始化的管理员密码（为空则随机生成并输出到日志） |
+| `BMS_OPEN_API_KEY` | `/api/open/**` 开放接口的 `X-Api-Key`（未设置时开放接口全部拒绝） |
 | `BMS_CORS_ORIGINS` / `BMS_H2_CONSOLE` | 跨域来源、是否开启 H2 控制台 |
 
 ### 前端

@@ -5,7 +5,7 @@ import com.bms.system.entity.User;
 /**
  * 角色访问策略（按 HTTP 方法 + 路径判断）：
  * <ul>
- *   <li>任何登录用户可读（GET）</li>
+ *   <li>任何登录用户可读（GET）业务数据；用户目录与操作审计(/api/system/**)仅 ADMIN 可读</li>
  *   <li>VIEWER 不可写</li>
  *   <li>OPERATOR 可做计费/对账/结算作业，不可维护基础数据(/api/basic/**)与用户(/api/system/**)</li>
  *   <li>ADMIN 无限制</li>
@@ -20,14 +20,17 @@ public final class AccessPolicy {
         if (User.ADMIN.equals(role)) {
             return true;
         }
-        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
-            return true;
-        }
         if (path.startsWith("/api/auth/")) {
             return true;
         }
+        if (path.startsWith("/api/system/")) {
+            return false;
+        }
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
+            return true;
+        }
         if (User.OPERATOR.equals(role)) {
-            return !path.startsWith("/api/basic/") && !path.startsWith("/api/system/");
+            return !path.startsWith("/api/basic/");
         }
         return false;
     }

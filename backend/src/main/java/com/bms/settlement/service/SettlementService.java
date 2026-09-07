@@ -62,7 +62,16 @@ public class SettlementService {
     }
 
     public Statement require(String statementNo) {
-        Statement s = statementMapper.selectOne(new LambdaQueryWrapper<Statement>().eq(Statement::getStatementNo, statementNo));
+        return require(statementNo, false);
+    }
+
+    /** lock=true 时以 SELECT ... FOR UPDATE 读取，保证同一对账单的开票/核销串行执行 */
+    private Statement require(String statementNo, boolean lock) {
+        LambdaQueryWrapper<Statement> q = new LambdaQueryWrapper<Statement>().eq(Statement::getStatementNo, statementNo);
+        if (lock) {
+            q.last("for update");
+        }
+        Statement s = statementMapper.selectOne(q);
         if (s == null) {
             throw new BizException("对账单不存在: " + statementNo);
         }
@@ -121,13 +130,17 @@ public class SettlementService {
         }
         s.setDueDate(req.getPeriodEnd().plusDays(paymentDays));
         statementMapper.insert(s);
+        int claimed = 0;
         for (Fee f : fees) {
-            f.setStatementNo(s.getStatementNo());
-            f.setStatus(BillingService.FEE_STATEMENTED);
-            feeMapper.updateById(f);
+            claimed += feeMapper.update(null, new LambdaUpdateWrapper<Fee>()
+                    .eq(Fee::getId, f.getId()).eq(Fee::getStatus, BillingService.FEE_NEW).isNull(Fee::getStatementNo)
+                    .set(Fee::getStatementNo, s.getStatementNo()).set(Fee::getStatus, BillingService.FEE_STATEMENTED));
+        }
+        if (claimed == 0) {
+            throw new BizException("该期间没有未对账费用");
         }
         recalc(s);
-        log(s.getStatementNo(), "GENERATE", null, DRAFT, fees.size() + " 条费用");
+        log(s.getStatementNo(), "GENERATE", null, DRAFT, claimed + " 条费用");
         return s;
     }
 
@@ -306,7 +319,7 @@ public class SettlementService {
 
     @Transactional
     public Invoice issueInvoice(Invoice in) {
-        Statement s = require(in.getStatementNo());
+        Statement s = require(in.getStatementNo(), true);
         if (!CONFIRMED.equals(s.getStatus()) && !SETTLED.equals(s.getStatus())) {
             throw new BizException("仅已确认/已结清的对账单可开票");
         }
@@ -387,7 +400,15 @@ public class SettlementService {
     }
 
     public Payment requirePayment(String paymentNo) {
-        Payment p = paymentMapper.selectOne(new LambdaQueryWrapper<Payment>().eq(Payment::getPaymentNo, paymentNo));
+        return requirePayment(paymentNo, false);
+    }
+
+    private Payment requirePayment(String paymentNo, boolean lock) {
+        LambdaQueryWrapper<Payment> q = new LambdaQueryWrapper<Payment>().eq(Payment::getPaymentNo, paymentNo);
+        if (lock) {
+            q.last("for update");
+        }
+        Payment p = paymentMapper.selectOne(q);
         if (p == null) {
             throw new BizException("收付款单不存在: " + paymentNo);
         }
@@ -397,8 +418,8 @@ public class SettlementService {
     /** 核销：把收付款分配到对账单；不传金额则自动取 min(未核销, 未收付) */
     @Transactional
     public Payment apply(PaymentApplyRequest req) {
-        Payment p = requirePayment(req.getPaymentNo());
-        Statement s = require(req.getStatementNo());
+        Payment p = requirePayment(req.getPaymentNo(), true);
+        Statement s = require(req.getStatementNo(), true);
         if (!CONFIRMED.equals(s.getStatus())) {
             throw new BizException("仅已确认的对账单可核销");
         }
@@ -440,8 +461,8 @@ public class SettlementService {
         if (a == null) {
             throw new BizException("核销记录不存在");
         }
-        Payment p = requirePayment(a.getPaymentNo());
-        Statement s = require(a.getStatementNo());
+        Payment p = requirePayment(a.getPaymentNo(), true);
+        Statement s = require(a.getStatementNo(), true);
         applyMapper.deleteById(applyId);
         p.setAppliedAmount(p.getAppliedAmount().subtract(a.getAmount()));
         paymentMapper.updateById(p);

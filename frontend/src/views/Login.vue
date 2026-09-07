@@ -15,7 +15,7 @@
         </el-form-item>
         <el-button type="primary" :loading="loading" style="width: 100%" @click="submit">登 录</el-button>
       </el-form>
-      <div class="login-hint">初始管理员 admin / admin123，登录后请及时修改密码</div>
+      <div class="login-hint">初始管理员 admin，口令见 BMS_ADMIN_PASSWORD 或首次启动日志，登录后请及时修改密码</div>
     </el-card>
   </div>
 </template>

@@ -26,4 +26,11 @@ class AccessPolicyTest {
         assertFalse(AccessPolicy.allows("OPERATOR", "PUT", "/api/basic/item/1"));
         assertFalse(AccessPolicy.allows("OPERATOR", "POST", "/api/system/user"));
     }
+
+    @Test
+    void onlyAdminMayReadUserDirectoryAndAuditLog() {
+        assertTrue(AccessPolicy.allows("ADMIN", "GET", "/api/system/user/page"));
+        assertFalse(AccessPolicy.allows("OPERATOR", "GET", "/api/system/user/page"));
+        assertFalse(AccessPolicy.allows("VIEWER", "GET", "/api/system/oplog/page"));
+    }
 }

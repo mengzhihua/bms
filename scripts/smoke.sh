@@ -4,8 +4,8 @@
 set -euo pipefail
 BASE="${1:-http://localhost:8080}/api"
 J='Content-Type: application/json'
-PASS="${BMS_ADMIN_PASSWORD:-admin123}"
-API_KEY="${BMS_OPEN_API_KEY:-bms-open-key}"
+PASS="${BMS_ADMIN_PASSWORD:?需设置 BMS_ADMIN_PASSWORD}"
+API_KEY="${BMS_OPEN_API_KEY:?需设置 BMS_OPEN_API_KEY}"
 need(){ command -v "$1" >/dev/null || { echo "missing $1"; exit 1; }; }
 need curl; need jq
 TOKEN=""

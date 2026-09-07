@@ -46,7 +46,7 @@ public class OpenApiController {
     public static class DocPush {
         @NotBlank
         private String extRef;
-        @NotBlank
+        /** WMS/OMS 必填；TMS 可省略，默认 TRANSPORT */
         private String bizType;
         @NotBlank
         private String customerCode;
@@ -84,9 +84,11 @@ public class OpenApiController {
 
     @PostMapping("/tms/docs")
     public R<List<PushResult>> tms(@RequestBody List<@Valid DocPush> docs) {
-        for (DocPush d : docs) {
-            if (d.getBizType() == null) {
-                d.setBizType("TRANSPORT");
+        if (docs != null) {
+            for (DocPush d : docs) {
+                if (d.getBizType() == null || d.getBizType().trim().isEmpty()) {
+                    d.setBizType("TRANSPORT");
+                }
             }
         }
         return R.ok(push("TMS", docs));
