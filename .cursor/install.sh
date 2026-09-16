@@ -3,6 +3,10 @@
 # Idempotent: safe to run repeatedly and against cached/prebuilt state.
 set -euo pipefail
 
+# Resolve the repo root (parent of this .cursor dir) so the script works
+# regardless of the caller's working directory.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # System toolchains the default base image lacks: JDK 17 (backend runtime),
 # Maven (backend build), and bc (used by scripts/smoke.sh). These get baked into
 # the environment build snapshot on first run, so the guard makes reruns a no-op.

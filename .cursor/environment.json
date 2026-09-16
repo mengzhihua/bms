@@ -1,16 +1,16 @@
 {
   "name": "BMS 结算管理系统",
   "user": "ubuntu",
-  "install": "bash .cursor/install.sh",
+  "install": "for d in . ./bms /agent/repos/bms; do [ -f \"$d/.cursor/install.sh\" ] && exec bash \"$d/.cursor/install.sh\"; done; echo 'bms/.cursor/install.sh not found' >&2; exit 1",
   "terminals": [
     {
       "name": "backend",
-      "command": "cd backend && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && export PATH=\"$JAVA_HOME/bin:$PATH\" && BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key BMS_AUTH_SECRET=dev-secret BMS_H2_CONSOLE=true mvn -q spring-boot:run",
+      "command": "for d in . ./bms /agent/repos/bms; do [ -f \"$d/.cursor/run-backend.sh\" ] && exec bash \"$d/.cursor/run-backend.sh\"; done; echo 'run-backend.sh not found' >&2; exit 1",
       "description": "Spring Boot API on :8080 (H2 file DB, auto-seeds demo data). Login admin/admin123; Open API X-Api-Key: dev-open-key."
     },
     {
       "name": "frontend",
-      "command": "cd frontend && npm run dev",
+      "command": "for d in . ./bms /agent/repos/bms; do [ -f \"$d/.cursor/run-frontend.sh\" ] && exec bash \"$d/.cursor/run-frontend.sh\"; done; echo 'run-frontend.sh not found' >&2; exit 1",
       "description": "Vite dev server on http://localhost:5173, proxies /api to the backend on :8080."
     }
   ],
