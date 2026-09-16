@@ -1,0 +1,21 @@
+{
+  "name": "BMS 结算管理系统",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd backend && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && export PATH=\"$JAVA_HOME/bin:$PATH\" && BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key BMS_AUTH_SECRET=dev-secret BMS_H2_CONSOLE=true mvn -q spring-boot:run",
+      "description": "Spring Boot API on :8080 (H2 file DB, auto-seeds demo data). Login admin/admin123; Open API X-Api-Key: dev-open-key."
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev",
+      "description": "Vite dev server on http://localhost:5173, proxies /api to the backend on :8080."
+    }
+  ],
+  "ports": [
+    { "name": "backend", "port": 8080 },
+    { "name": "frontend", "port": 5173 }
+  ]
+}
