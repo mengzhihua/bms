@@ -3,6 +3,7 @@ package com.bms.integration.controller;
 import com.bms.billing.controller.BizDocController;
 import com.bms.billing.entity.BizDoc;
 import com.bms.billing.entity.Fee;
+import com.bms.billing.mapper.BizDocMapper;
 import com.bms.billing.mapper.FeeMapper;
 import com.bms.billing.service.BillingService;
 import com.bms.common.BizException;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
@@ -23,7 +25,9 @@ import javax.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 开放接口（X-Api-Key）：上游 WMS / TMS / OMS 推送业务单据，BMS 自动计费。
@@ -32,6 +36,7 @@ import java.util.List;
  *   <li>POST /api/open/tms/docs   运单（运输）单据（批量）</li>
  *   <li>POST /api/open/oms/docs   OMS 订单类单据（批量，等同 wms 但来源标记 OMS）</li>
  *   <li>GET  /api/open/docs/{source}/{extRef}  查询单据计费结果</li>
+ *   <li>GET  /api/open/cost/records            IR 控制塔拉取费用快照</li>
  * </ul>
  */
 @RestController
@@ -40,6 +45,7 @@ import java.util.List;
 public class OpenApiController {
     private final BillingService billingService;
     private final FeeMapper feeMapper;
+    private final BizDocMapper docMapper;
     private final IntegrationLogService logService;
 
     @Data
@@ -155,5 +161,51 @@ public class OpenApiController {
         detail.setDoc(d);
         detail.setFees(feeMapper.selectList(new LambdaQueryWrapper<Fee>().eq(Fee::getDocNo, d.getDocNo())));
         return R.ok(detail);
+    }
+
+    /** IR 控制塔成本快照：未作废费用按业务日输出。 */
+    @GetMapping("/cost/records")
+    public R<List<Map<String, Object>>> costRecords(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to) {
+        if (from == null || to == null || from.isAfter(to)) {
+            throw new BizException("from/to 日期不合法");
+        }
+        List<Fee> fees = feeMapper.selectList(new LambdaQueryWrapper<Fee>()
+                .ne(Fee::getStatus, "CANCELLED")
+                .ge(Fee::getBizDate, from)
+                .le(Fee::getBizDate, to)
+                .orderByAsc(Fee::getBizDate));
+        Map<String, BizDoc> docs = new LinkedHashMap<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Fee fee : fees) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("bizDate", fee.getBizDate());
+            row.put("orderNo", fee.getDocNo());
+            row.put("warehouseCode", fee.getWarehouseCode());
+            row.put("carrierCode", null);
+            row.put("costType", fee.getBizType() != null ? fee.getBizType() : fee.getChargeItemCode());
+            row.put("amount", fee.getTotalAmount() != null ? fee.getTotalAmount() : fee.getAmount());
+            row.put("sourceSystem", "BMS");
+            row.put("remark", fee.getRemark());
+            if (fee.getDocNo() != null) {
+                BizDoc doc = docs.computeIfAbsent(fee.getDocNo(), this::loadDoc);
+                if (doc != null) {
+                    row.put("orderNo", doc.getExtRef() != null ? doc.getExtRef() : doc.getDocNo());
+                    if (row.get("warehouseCode") == null) {
+                        row.put("warehouseCode", doc.getWarehouseCode());
+                    }
+                    if (row.get("costType") == null) {
+                        row.put("costType", doc.getBizType());
+                    }
+                }
+            }
+            rows.add(row);
+        }
+        return R.ok(rows);
+    }
+
+    private BizDoc loadDoc(String docNo) {
+        return docMapper.selectOne(new LambdaQueryWrapper<BizDoc>().eq(BizDoc::getDocNo, docNo));
     }
 }

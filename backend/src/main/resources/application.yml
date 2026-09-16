@@ -55,7 +55,7 @@ bms:
     origins: ${BMS_CORS_ORIGINS:http://localhost:5173}
   open:
     # 对外开放接口 /api/open/** 的 X-Api-Key（WMS/TMS/OMS 业务单据推送）；为空则开放接口全部拒绝
-    api-key: ${BMS_OPEN_API_KEY:}
+    api-key: ${BMS_OPEN_API_KEY:bms-open-key}
 
 ---
 spring:
