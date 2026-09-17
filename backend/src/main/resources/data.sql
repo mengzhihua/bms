@@ -158,3 +158,20 @@ WHERE c.contract_no = 'AP-2024-003' AND NOT EXISTS (SELECT 1 FROM bms_rate_rule 
 INSERT INTO bms_rate_rule (contract_id, charge_item_code, biz_type, unit, price_mode, unit_price, min_charge, priority, status, remark, created_at, updated_at)
 SELECT c.id, 'OUTBOUND_HANDLING', 'OUTBOUND', 'PIECE', 'UNIT', 0.15, 0, 0, 1, '出库计件 0.15 元/件', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM bms_contract c
 WHERE c.contract_no = 'AP-2024-003' AND NOT EXISTS (SELECT 1 FROM bms_rate_rule r WHERE r.contract_id = c.id AND r.charge_item_code = 'OUTBOUND_HANDLING');
+
+-- IR 控制塔联调：卡单 IR-SO-STUCK 对应仓配费用，供 GET /api/open/cost/records 拉取
+INSERT INTO bms_biz_doc (doc_no, source, ext_ref, biz_type, customer_code, supplier_code, warehouse_code, biz_date,
+    orders, lines, qty, bill_status, ar_amount, ap_amount, remark, created_at, updated_at)
+SELECT 'DOC-IR-STUCK', 'OMS', 'IR-SO-STUCK', 'OUTBOUND', 'CUST-001', 'SF', 'WH-SH', CURRENT_DATE,
+    1, 1, 2, 'BILLED', 88.00, 18.00, 'IR 仓配卡单费用', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM bms_biz_doc WHERE ext_ref = 'IR-SO-STUCK');
+INSERT INTO bms_fee (fee_no, direction, partner_code, contract_no, doc_no, biz_type, warehouse_code, charge_item_code,
+    biz_date, unit, qty, unit_price, amount, tax_rate, tax_amount, total_amount, source, status, remark, created_at, updated_at)
+SELECT 'FEE-IR-AR-001', 'AR', 'CUST-001', 'AR-2024-001', 'DOC-IR-STUCK', 'OUTBOUND', 'WH-SH', 'OUTBOUND_HANDLING',
+    CURRENT_DATE, 'PIECE', 2, 44, 88.00, 0.06, 5.28, 93.28, 'MANUAL', 'NEW', 'IR-SO-STUCK 出库操作费', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM bms_fee WHERE fee_no = 'FEE-IR-AR-001');
+INSERT INTO bms_fee (fee_no, direction, partner_code, contract_no, doc_no, biz_type, warehouse_code, charge_item_code,
+    biz_date, unit, qty, unit_price, amount, tax_rate, tax_amount, total_amount, source, status, remark, created_at, updated_at)
+SELECT 'FEE-IR-AP-001', 'AP', 'SF', 'AP-2024-001', 'DOC-IR-STUCK', 'TRANSPORT', 'WH-SH', 'FREIGHT',
+    CURRENT_DATE, 'ORDER', 1, 18, 18.00, 0.09, 1.62, 19.62, 'MANUAL', 'NEW', 'IR-SO-STUCK 运费', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM bms_fee WHERE fee_no = 'FEE-IR-AP-001');
