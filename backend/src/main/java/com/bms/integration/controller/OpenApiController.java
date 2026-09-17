@@ -183,7 +183,7 @@ public class OpenApiController {
             row.put("bizDate", fee.getBizDate());
             row.put("orderNo", fee.getDocNo());
             row.put("warehouseCode", fee.getWarehouseCode());
-            row.put("carrierCode", null);
+            row.put("carrierCode", carrierOf(fee, null));
             row.put("costType", fee.getBizType() != null ? fee.getBizType() : fee.getChargeItemCode());
             row.put("amount", fee.getTotalAmount() != null ? fee.getTotalAmount() : fee.getAmount());
             row.put("sourceSystem", "BMS");
@@ -198,6 +198,9 @@ public class OpenApiController {
                     if (row.get("costType") == null) {
                         row.put("costType", doc.getBizType());
                     }
+                    if (row.get("carrierCode") == null) {
+                        row.put("carrierCode", carrierOf(fee, doc));
+                    }
                 }
             }
             rows.add(row);
@@ -207,5 +210,25 @@ public class OpenApiController {
 
     private BizDoc loadDoc(String docNo) {
         return docMapper.selectOne(new LambdaQueryWrapper<BizDoc>().eq(BizDoc::getDocNo, docNo));
+    }
+
+    private String carrierOf(Fee fee, BizDoc doc) {
+        if (fee != null && transport(fee.getBizType(), fee.getChargeItemCode())
+                && notBlank(fee.getPartnerCode())) {
+            return fee.getPartnerCode();
+        }
+        if (doc != null && transport(doc.getBizType(), fee == null ? null : fee.getChargeItemCode())
+                && notBlank(doc.getSupplierCode())) {
+            return doc.getSupplierCode();
+        }
+        return null;
+    }
+
+    private static boolean transport(String bizType, String chargeItemCode) {
+        return "TRANSPORT".equals(bizType) || "FREIGHT".equals(chargeItemCode);
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

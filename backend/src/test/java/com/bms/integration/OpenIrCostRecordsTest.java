@@ -36,12 +36,19 @@ class OpenIrCostRecordsTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
         boolean found = false;
+        boolean freightCarrier = false;
         for (JsonNode row : objectMapper.readTree(body).get("data")) {
             if ("IR-SO-STUCK".equals(row.path("orderNo").asText())
                     && "WH-SH".equals(row.path("warehouseCode").asText())) {
                 found = true;
             }
+            if ("IR-SO-STUCK".equals(row.path("orderNo").asText())
+                    && ("TRANSPORT".equals(row.path("costType").asText())
+                    || "FREIGHT".equals(row.path("costType").asText()))) {
+                freightCarrier = "SF".equals(row.path("carrierCode").asText());
+            }
         }
         org.junit.jupiter.api.Assertions.assertTrue(found, "应包含 IR-SO-STUCK 费用");
+        org.junit.jupiter.api.Assertions.assertTrue(freightCarrier, "运费应带回承运商 SF");
     }
 }
