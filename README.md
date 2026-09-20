@@ -174,7 +174,8 @@ cd bms-1.0.0
 
 - `bms-1.0.0-linux-x64.zip` → `bin/bms`
 - `bms-1.0.0-windows-x64.zip` → 双击 `bms.exe`
-- `bms-1.0.0-macos-x64.zip` → 双击 `bms.app`
+- `bms-1.0.0-macos-arm64.zip` → Apple Silicon（M 系列），双击 `bms.app`
+- `bms-1.0.0-macos-x64.zip` → Intel Mac，双击 `bms.app`
 
 浏览器访问 `http://127.0.0.1:8084`。默认账号 `admin / admin123`。
 
