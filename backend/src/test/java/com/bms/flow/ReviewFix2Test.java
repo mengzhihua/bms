@@ -72,8 +72,8 @@ class ReviewFix2Test {
         jdbc.update("INSERT INTO bms_biz_doc (doc_no, source, ext_ref, biz_type, customer_code, biz_date, bill_status) VALUES (?,?,?,?,?,?,?)",
                 "MIG-" + UUID.randomUUID().toString().substring(0, 12), "WMS", ref, "RETURN", "CUST-001", LocalDate.of(2030, 1, 1), "PENDING");
 
-        // 存在重复数据时不创建唯一索引，仅报错日志
-        schemaMigration.run(new DefaultApplicationArguments());
+        // 存在重复数据时拒绝启动，且不创建唯一索引
+        assertThrows(IllegalStateException.class, () -> schemaMigration.run(new DefaultApplicationArguments()));
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.indexes WHERE lower(index_name) LIKE 'uk_biz_doc_ref%'", Integer.class));
 

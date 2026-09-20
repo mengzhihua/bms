@@ -79,9 +79,8 @@ public class SchemaMigration implements ApplicationRunner {
                 "SELECT source, ext_ref, COUNT(*) AS cnt FROM bms_biz_doc WHERE ext_ref IS NOT NULL "
                         + "GROUP BY source, ext_ref HAVING COUNT(*) > 1");
         if (!dups.isEmpty()) {
-            log.error("bms_biz_doc 存在 {} 组重复的 (source, ext_ref)，无法创建唯一索引 {}，请人工合并后重启: {}",
-                    dups.size(), UNIQUE_INDEX, dups);
-            return;
+            throw new IllegalStateException("bms_biz_doc 存在 " + dups.size() + " 组重复的 (source, ext_ref)，无法创建唯一索引 "
+                    + UNIQUE_INDEX + "，请人工合并后重启: " + dups);
         }
         if (hasOld) {
             jdbc.execute(mysql ? "DROP INDEX " + OLD_INDEX + " ON " + DOC_TABLE : "DROP INDEX " + OLD_INDEX);
