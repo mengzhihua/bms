@@ -363,10 +363,15 @@ public class SettlementService {
         if (!"ISSUED".equals(in.getStatus())) {
             throw new BizException("发票已作废");
         }
+        Statement s = require(in.getStatementNo(), true);
+        int cancelled = invoiceMapper.update(null, new LambdaUpdateWrapper<Invoice>()
+                .eq(Invoice::getId, in.getId()).eq(Invoice::getStatus, "ISSUED")
+                .set(Invoice::getStatus, "CANCELLED").set(Invoice::getRemark, reason));
+        if (cancelled == 0) {
+            throw new BizException("发票已作废");
+        }
         in.setStatus("CANCELLED");
         in.setRemark(reason);
-        invoiceMapper.updateById(in);
-        Statement s = require(in.getStatementNo());
         s.setInvoicedAmount(s.getInvoicedAmount().subtract(in.getTotalAmount()));
         statementMapper.updateById(s);
         log(s.getStatementNo(), "INVOICE_CANCEL", s.getStatus(), s.getStatus(), invoiceNo);
@@ -463,7 +468,9 @@ public class SettlementService {
         }
         Payment p = requirePayment(a.getPaymentNo(), true);
         Statement s = require(a.getStatementNo(), true);
-        applyMapper.deleteById(applyId);
+        if (applyMapper.deleteById(applyId) == 0) {
+            throw new BizException("核销记录已取消");
+        }
         p.setAppliedAmount(p.getAppliedAmount().subtract(a.getAmount()));
         paymentMapper.updateById(p);
         s.setPaidAmount(s.getPaidAmount().subtract(a.getAmount()));
