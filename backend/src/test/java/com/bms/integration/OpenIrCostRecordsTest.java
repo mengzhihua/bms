@@ -51,4 +51,33 @@ class OpenIrCostRecordsTest {
         org.junit.jupiter.api.Assertions.assertTrue(found, "应包含 IR-SO-STUCK 费用");
         org.junit.jupiter.api.Assertions.assertTrue(freightCarrier, "运费应带回承运商 SF");
     }
+
+    @Test
+    void irSnapshotsWrapCostRecords() throws Exception {
+        String body = mockMvc.perform(get("/api/open/ir/snapshots")
+                        .header("X-Api-Key", "test-open-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.system").value("BMS"))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode data = objectMapper.readTree(body).get("data");
+        boolean costRow = false;
+        boolean snapshot = false;
+        for (JsonNode row : data.get("costs")) {
+            if ("IR-SO-STUCK".equals(row.path("orderNo").asText())
+                    && "WH-SH".equals(row.path("warehouseCode").asText())) {
+                costRow = true;
+            }
+        }
+        for (JsonNode row : data.get("snapshots")) {
+            if ("COST".equals(row.path("dataType").asText())
+                    && "FEE-IR-AR-001".equals(row.path("bizKey").asText())) {
+                snapshot = true;
+                org.junit.jupiter.api.Assertions.assertEquals("NEW", row.path("status").asText());
+                org.junit.jupiter.api.Assertions.assertEquals("IR-SO-STUCK", row.path("orderNo").asText());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(costRow, "Open IR costs 应含 IR-SO-STUCK");
+        org.junit.jupiter.api.Assertions.assertTrue(snapshot, "Open IR snapshots 应含 COST/FEE-IR-AR-001");
+    }
 }
