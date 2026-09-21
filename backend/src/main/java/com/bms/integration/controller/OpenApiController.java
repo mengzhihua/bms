@@ -37,6 +37,7 @@ import java.util.Map;
  *   <li>POST /api/open/oms/docs   OMS 订单类单据（批量，等同 wms 但来源标记 OMS）</li>
  *   <li>GET  /api/open/docs/{source}/{extRef}  查询单据计费结果</li>
  *   <li>GET  /api/open/cost/records            IR 控制塔拉取费用快照</li>
+ *   <li>GET  /api/open/ir/snapshots            IR 控制塔标准快照（costs + COST 行）</li>
  * </ul>
  */
 @RestController
@@ -168,6 +169,29 @@ public class OpenApiController {
     public R<List<Map<String, Object>>> costRecords(
             @RequestParam LocalDate from,
             @RequestParam LocalDate to) {
+        return R.ok(costRecordRows(from, to));
+    }
+
+    /** IR 控制塔标准口：费用明细同时以 costs 数组和 COST 快照行给出。 */
+    @GetMapping("/ir/snapshots")
+    public R<Map<String, Object>> irSnapshots(
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to) {
+        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate start = from == null ? end.minusDays(90) : from;
+        List<Map<String, Object>> costs = costRecordRows(start, end);
+        List<Map<String, Object>> snapshots = new ArrayList<>();
+        for (Map<String, Object> cost : costs) {
+            snapshots.add(costSnapshot(cost));
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("system", "BMS");
+        data.put("costs", costs);
+        data.put("snapshots", snapshots);
+        return R.ok(data);
+    }
+
+    private List<Map<String, Object>> costRecordRows(LocalDate from, LocalDate to) {
         if (from == null || to == null || from.isAfter(to)) {
             throw new BizException("from/to 日期不合法");
         }
@@ -180,12 +204,14 @@ public class OpenApiController {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Fee fee : fees) {
             Map<String, Object> row = new LinkedHashMap<>();
+            row.put("feeNo", fee.getFeeNo());
             row.put("bizDate", fee.getBizDate());
             row.put("orderNo", fee.getDocNo());
             row.put("warehouseCode", fee.getWarehouseCode());
             row.put("carrierCode", carrierOf(fee, null));
             row.put("costType", fee.getBizType() != null ? fee.getBizType() : fee.getChargeItemCode());
             row.put("amount", fee.getTotalAmount() != null ? fee.getTotalAmount() : fee.getAmount());
+            row.put("status", fee.getStatus());
             row.put("sourceSystem", "BMS");
             row.put("remark", fee.getRemark());
             if (fee.getDocNo() != null) {
@@ -205,7 +231,22 @@ public class OpenApiController {
             }
             rows.add(row);
         }
-        return R.ok(rows);
+        return rows;
+    }
+
+    private static Map<String, Object> costSnapshot(Map<String, Object> cost) {
+        Map<String, Object> row = new LinkedHashMap<>(cost);
+        Object feeNo = cost.get("feeNo");
+        Object orderNo = cost.get("orderNo");
+        Object costType = cost.get("costType");
+        row.put("dataType", "COST");
+        row.put("bizKey", feeNo != null ? feeNo : orderNo + "/" + costType);
+        row.put("status", cost.get("status") == null ? "NEW" : cost.get("status"));
+        row.put("sku", costType);
+        row.put("qty", BigDecimal.ONE);
+        row.put("plantCode", cost.get("warehouseCode"));
+        row.put("title", cost.get("remark"));
+        return row;
     }
 
     private BizDoc loadDoc(String docNo) {
