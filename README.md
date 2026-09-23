@@ -142,6 +142,12 @@ BMS_ADMIN_PASSWORD=admin123 BMS_OPEN_API_KEY=dev-open-key \
 
 对账单取消时其费用回到 `NEW` 可再次对账；已核销的收付款须先反核销才能删除。
 
+## 控制塔对接
+
+成本只读契约见 [技术方案](docs/技术方案.md)。
+
+控制塔拉 `GET /api/open/cost/records?from&to`，以及 `GET /api/open/ir/snapshots`。本系统不提供 `/api/open/ir/actions`，不能被控制塔改单。
+
 ## 发布包（开箱即用）
 
 前端生产构建打进 Spring Boot 可执行 JAR。三种用法：
