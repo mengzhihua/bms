@@ -4,6 +4,8 @@ OTWB 供应链平台中的计费与结算中枢：接收 WMS / TMS / OMS 的业�
 按客户（应收 AR）与承运商/供应商（应付 AP）合同中的费率规则自动计费，生成费用明细、对账单、发票与收付款核销，
 并提供收入/成本/毛利、账龄等经营报表。与本组织的 WMS / TMS / OMS 系统同构（Spring Boot 2.7 + MyBatis-Plus / Vue 3 + Element Plus）。
 
+项目亮点见 [docs/项目亮点.md](docs/项目亮点.md)。
+
 ## 功能范围
 
 | 模块 | 能力 |
