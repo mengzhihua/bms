@@ -103,6 +103,22 @@ public final class RatingEngine {
                 r.setUnitPrice(qty.signum() == 0 ? BigDecimal.ZERO : amount.divide(qty, 4, RoundingMode.HALF_UP));
                 break;
             }
+            case "FIRST_EXTRA": {
+                if (tiers == null || tiers.isEmpty() || tiers.get(0).getToQty() == null) {
+                    throw new BizException("首重续重需要首重数量和首重金额");
+                }
+                RateTier first = tiers.get(0);
+                BigDecimal extraQty = qty.subtract(first.getToQty());
+                if (extraQty.signum() < 0) {
+                    extraQty = BigDecimal.ZERO;
+                }
+                BigDecimal extraPrice = nz(rule.getUnitPrice());
+                amount = nz(first.getPrice()).add(extraQty.multiply(extraPrice));
+                r.setUnitPrice(extraPrice);
+                detail.append("首重 ").append(plain(first.getToQty())).append(" ").append(plain(first.getPrice()))
+                        .append(" 元，超出 ").append(plain(extraQty)).append(" × ").append(plain(extraPrice));
+                break;
+            }
             default:
                 throw new BizException("未知计价方式: " + rule.getPriceMode());
         }

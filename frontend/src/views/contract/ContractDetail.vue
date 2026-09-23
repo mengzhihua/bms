@@ -38,7 +38,8 @@
         <el-table-column prop="rule.priceMode" label="计价方式" width="90"><template #default="{ row }"><StatusTag :value="row.rule.priceMode" /></template></el-table-column>
         <el-table-column label="价格 / 阶梯" min-width="260">
           <template #default="{ row }">
-            <span v-if="['FIXED', 'UNIT'].includes(row.rule.priceMode)">{{ row.rule.unitPrice }}</span>
+            <span v-if="row.rule.priceMode === 'FIRST_EXTRA'">首重 {{ row.tiers[0]?.toQty }} / {{ row.tiers[0]?.price }}，续重 {{ row.rule.unitPrice }}</span>
+            <span v-else-if="['FIXED', 'UNIT'].includes(row.rule.priceMode)">{{ row.rule.unitPrice }}</span>
             <span v-else>{{ row.tiers.map((t) => `${t.fromQty}~${t.toQty ?? '∞'}: ${t.price}`).join(' | ') }}</span>
           </template>
         </el-table-column>
@@ -64,14 +65,19 @@
           <el-col :span="12"><el-form-item label="仓库"><el-select v-model="rule.warehouseCode" clearable placeholder="全部仓库" style="width: 100%"><el-option v-for="o in options.warehouse" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="计费单位" required><el-select v-model="rule.unit" style="width: 100%"><el-option v-for="o in UNITS" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="计价方式" required><el-select v-model="rule.priceMode" style="width: 100%"><el-option v-for="o in PRICE_MODES" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item></el-col>
-          <el-col :span="12" v-if="['FIXED', 'UNIT'].includes(rule.priceMode)"><el-form-item :label="rule.priceMode === 'FIXED' ? '固定金额' : '单价'" required><el-input-number v-model="rule.unitPrice" :min="0" :precision="4" style="width: 100%" /></el-form-item></el-col>
+          <el-col :span="12" v-if="['FIXED', 'UNIT', 'FIRST_EXTRA'].includes(rule.priceMode)"><el-form-item :label="rule.priceMode === 'FIXED' ? '固定金额' : rule.priceMode === 'FIRST_EXTRA' ? '续重单价' : '单价'" required><el-input-number v-model="rule.unitPrice" :min="0" :precision="4" style="width: 100%" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="最低收费"><el-input-number v-model="rule.minCharge" :min="0" :precision="2" style="width: 100%" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="最高收费"><el-input-number v-model="rule.maxCharge" :min="0" :precision="2" style="width: 100%" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="优先级"><el-input-number v-model="rule.priority" :min="0" style="width: 100%" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="状态"><el-switch v-model="rule.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="停用" /></el-form-item></el-col>
           <el-col :span="24"><el-form-item label="说明"><el-input v-model="rule.remark" /></el-form-item></el-col>
         </el-row>
-        <template v-if="['TIERED', 'PROGRESSIVE'].includes(rule.priceMode)">
+        <template v-if="rule.priceMode === 'FIRST_EXTRA'">
+          <el-divider content-position="left">首重：数量以内按整段金额，超出按续重单价</el-divider>
+          <el-form-item label="首重数量" required><el-input-number v-model="firstTier.toQty" :min="0.001" :precision="3" /></el-form-item>
+          <el-form-item label="首重金额" required><el-input-number v-model="firstTier.price" :min="0" :precision="4" /></el-form-item>
+        </template>
+        <template v-else-if="['TIERED', 'PROGRESSIVE'].includes(rule.priceMode)">
           <el-divider content-position="left">阶梯区间（{{ rule.priceMode === 'TIERED' ? '按数量落入的区间价格整段计价' : '逐段累进；首段 0~X 视为首重/首件整段价' }}）</el-divider>
           <el-table :data="tiers" size="small" border>
             <el-table-column label="从 (>)" width="160"><template #default="{ row }"><el-input-number v-model="row.fromQty" :min="0" :precision="3" size="small" style="width: 100%" /></template></el-table-column>
@@ -127,9 +133,12 @@ const ruleVisible = ref(false)
 const saving = ref(false)
 const rule = ref({})
 const tiers = ref([])
+const firstTier = ref({ fromQty: 0, toQty: 1, price: 0 })
 function openRule(row) {
   rule.value = row ? { ...row.rule } : { bizType: 'OUTBOUND', unit: 'PIECE', priceMode: 'UNIT', unitPrice: 0, minCharge: 0, maxCharge: 0, priority: 1, status: 1 }
   tiers.value = row ? row.tiers.map((t) => ({ ...t })) : []
+  const head = tiers.value[0]
+  firstTier.value = head ? { fromQty: 0, toQty: head.toQty ?? 1, price: head.price ?? 0 } : { fromQty: 0, toQty: 1, price: 0 }
   ruleVisible.value = true
 }
 function addTier() {
@@ -139,7 +148,10 @@ function addTier() {
 async function saveRule() {
   saving.value = true
   try {
-    await contract.saveRule(id, { rule: rule.value, tiers: ['TIERED', 'PROGRESSIVE'].includes(rule.value.priceMode) ? tiers.value : [] })
+    const tierRows = rule.value.priceMode === 'FIRST_EXTRA'
+      ? [{ fromQty: 0, toQty: firstTier.value.toQty, price: firstTier.value.price }]
+      : ['TIERED', 'PROGRESSIVE'].includes(rule.value.priceMode) ? tiers.value : []
+    await contract.saveRule(id, { rule: rule.value, tiers: tierRows })
     ElMessage.success('保存成功')
     ruleVisible.value = false
     load()

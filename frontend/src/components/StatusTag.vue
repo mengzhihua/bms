@@ -54,6 +54,7 @@ const DICT = {
   UNIT: ['单价', 'primary'],
   TIERED: ['阶梯', 'warning'],
   PROGRESSIVE: ['累进', 'success'],
+  FIRST_EXTRA: ['首重续重', 'warning'],
   // 发票类型 / 支付方式
   SPECIAL: ['专票', 'primary'],
   NORMAL: ['普票', 'info'],

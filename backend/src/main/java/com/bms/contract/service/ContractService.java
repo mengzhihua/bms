@@ -35,7 +35,7 @@ public class ContractService {
     public static final List<String> BIZ_TYPES = Arrays.asList("INBOUND", "OUTBOUND", "STORAGE", "TRANSPORT", "VAS", "RETURN");
     public static final List<String> UNITS = Arrays.asList("ORDER", "LINE", "PIECE", "BOX", "PALLET", "WEIGHT", "VOLUME", "DISTANCE",
             "PALLET_DAY", "VOLUME_DAY", "PIECE_DAY");
-    public static final List<String> PRICE_MODES = Arrays.asList("FIXED", "UNIT", "TIERED", "PROGRESSIVE");
+    public static final List<String> PRICE_MODES = Arrays.asList("FIXED", "UNIT", "TIERED", "PROGRESSIVE", "FIRST_EXTRA");
 
     private final ContractMapper contractMapper;
     private final RateRuleMapper ruleMapper;
@@ -123,9 +123,24 @@ public class ContractService {
         if (r.getWarehouseCode() != null && r.getWarehouseCode().trim().isEmpty()) {
             r.setWarehouseCode(null);
         }
-        boolean tiered = "TIERED".equals(r.getPriceMode()) || "PROGRESSIVE".equals(r.getPriceMode());
+        boolean firstExtra = "FIRST_EXTRA".equals(r.getPriceMode());
+        boolean tiered = "TIERED".equals(r.getPriceMode()) || "PROGRESSIVE".equals(r.getPriceMode()) || firstExtra;
         List<RateTier> tiers = d.getTiers();
-        if (tiered) {
+        if (firstExtra) {
+            if (tiers == null || tiers.size() != 1 || tiers.get(0).getToQty() == null || tiers.get(0).getToQty().signum() <= 0) {
+                throw new BizException("首重续重需要一段大于 0 的首重数量");
+            }
+            if (tiers.get(0).getPrice() == null || tiers.get(0).getPrice().signum() < 0) {
+                throw new BizException("首重金额不能为负");
+            }
+            if (tiers.get(0).getFromQty() == null) {
+                tiers.get(0).setFromQty(BigDecimal.ZERO);
+            }
+            if (r.getUnitPrice() == null || r.getUnitPrice().signum() < 0) {
+                throw new BizException("续重单价不能为负");
+            }
+        }
+        if (tiered && !firstExtra) {
             if (tiers == null || tiers.isEmpty()) {
                 throw new BizException("阶梯/累进计价必须配置阶梯区间");
             }
