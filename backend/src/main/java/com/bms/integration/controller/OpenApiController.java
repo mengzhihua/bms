@@ -72,6 +72,11 @@ public class OpenApiController {
         private String origin;
         private String destination;
         private String remark;
+        /** 调用方已经算好的金额。有值时不再按合同重算。 */
+        private BigDecimal statedAmount;
+        /** AR 或 AP，缺省 AP */
+        private String direction;
+        private String chargeItemCode;
     }
 
     @Data
@@ -106,6 +111,24 @@ public class OpenApiController {
         return R.ok(push("OMS", docs));
     }
 
+    /** 子系统直连用 WMS 仓号，结算单仍记控制塔仓号。 */
+    static String warehouse(String code) {
+        if (code == null) {
+            return null;
+        }
+        String value = code.trim();
+        if ("WH01".equals(value)) {
+            return "WH-SH";
+        }
+        if ("WH02".equals(value)) {
+            return "WH-BJ";
+        }
+        if ("WH03".equals(value)) {
+            return "WH-GZ";
+        }
+        return value;
+    }
+
     private List<PushResult> push(String source, List<DocPush> docs) {
         if (docs == null || docs.isEmpty()) {
             throw new BizException("单据列表为空");
@@ -122,7 +145,7 @@ public class OpenApiController {
                 d.setBizType(p.getBizType());
                 d.setCustomerCode(p.getCustomerCode());
                 d.setSupplierCode(p.getSupplierCode());
-                d.setWarehouseCode(p.getWarehouseCode());
+                d.setWarehouseCode(warehouse(p.getWarehouseCode()));
                 d.setBizDate(p.getBizDate());
                 d.setOrders(p.getOrders());
                 d.setLines(p.getLines());
@@ -136,7 +159,12 @@ public class OpenApiController {
                 d.setOrigin(p.getOrigin());
                 d.setDestination(p.getDestination());
                 d.setRemark(p.getRemark());
-                BizDoc saved = billingService.createDoc(d, true);
+                boolean stated = p.getStatedAmount() != null;
+                BizDoc saved = billingService.createDoc(d, !stated);
+                if (stated && !BillingService.BILLED.equals(saved.getBillStatus())) {
+                    saved = billingService.bookStated(saved, p.getDirection(), p.getChargeItemCode(),
+                            p.getStatedAmount(), p.getRemark());
+                }
                 r.setDocNo(saved.getDocNo());
                 r.setBillStatus(saved.getBillStatus());
                 r.setArAmount(saved.getArAmount());

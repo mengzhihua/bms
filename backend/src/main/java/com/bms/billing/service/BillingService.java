@@ -120,6 +120,45 @@ public class BillingService {
         return docMapper.selectById(d.getId());
     }
 
+    /** 按调用方给出的金额记一笔费用，不再走合同费率。税额按 0，金额与差额单一致。 */
+    @Transactional
+    public BizDoc bookStated(BizDoc doc, String direction, String chargeItem, BigDecimal amount, String detail) {
+        if (doc == null) {
+            throw new BizException("业务单据不存在");
+        }
+        if (amount == null) {
+            throw new BizException("声明金额不能为空");
+        }
+        String dir = "AR".equalsIgnoreCase(direction) ? "AR" : "AP";
+        String partner = "AR".equals(dir) ? doc.getCustomerCode() : doc.getSupplierCode();
+        if (partner == null || partner.trim().isEmpty()) {
+            throw new BizException(dir + " 结算对象不能为空");
+        }
+        Fee fee = new Fee();
+        fee.setDirection(dir);
+        fee.setPartnerCode(partner);
+        fee.setDocNo(doc.getDocNo());
+        fee.setBizType(doc.getBizType());
+        fee.setWarehouseCode(doc.getWarehouseCode());
+        fee.setChargeItemCode(chargeItem == null || chargeItem.trim().isEmpty() ? "FREIGHT" : chargeItem.trim());
+        fee.setBizDate(doc.getBizDate());
+        fee.setUnit("BILL");
+        fee.setQty(BigDecimal.ONE);
+        fee.setUnitPrice(amount);
+        fee.setSource("STATED");
+        fee.setCalcDetail(detail);
+        insertFee(fee, amount, BigDecimal.ZERO);
+        if ("AR".equals(dir)) {
+            doc.setArAmount(fee.getTotalAmount());
+        } else {
+            doc.setApAmount(fee.getTotalAmount());
+        }
+        doc.setBillStatus(BILLED);
+        doc.setFailReason(null);
+        docMapper.updateById(doc);
+        return doc;
+    }
+
     public BizDoc findByRef(String source, String extRef) {
         return docMapper.selectOne(new LambdaQueryWrapper<BizDoc>()
                 .eq(BizDoc::getSource, source).eq(BizDoc::getExtRef, extRef).last("limit 1"));
