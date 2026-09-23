@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS bms_fee (
   tax_rate DECIMAL(6,4) DEFAULT 0,
   tax_amount DECIMAL(14,2) DEFAULT 0,
   total_amount DECIMAL(14,2) NOT NULL,  -- 含税
-  source VARCHAR(16) DEFAULT 'AUTO',    -- AUTO 自动计费 / MANUAL 手工 / ADJUST 调整
+  source VARCHAR(16) DEFAULT 'AUTO',    -- AUTO 自动计费 / MANUAL 手工 / ADJUST 调整 / STATED 调用方声明金额
   status VARCHAR(16) DEFAULT 'NEW',     -- NEW 未对账 / STATEMENTED 已对账 / SETTLED 已结算 / CANCELLED 作废
   statement_no VARCHAR(32),
   calc_detail VARCHAR(500),             -- 计费过程说明
