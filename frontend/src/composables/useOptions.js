@@ -33,7 +33,7 @@ export const UNITS = [
   { label: '托·天', value: 'PALLET_DAY' }, { label: '方·天', value: 'VOLUME_DAY' }, { label: '件·天', value: 'PIECE_DAY' }
 ]
 export const PRICE_MODES = [
-  { label: '固定', value: 'FIXED' }, { label: '单价', value: 'UNIT' }, { label: '阶梯(整段)', value: 'TIERED' }, { label: '累进(分段)', value: 'PROGRESSIVE' }
+  { label: '固定', value: 'FIXED' }, { label: '单价', value: 'UNIT' }, { label: '阶梯(整段)', value: 'TIERED' }, { label: '累进(分段)', value: 'PROGRESSIVE' }, { label: '首重续重', value: 'FIRST_EXTRA' }
 ]
 export const labelOf = (list, v) => list.find((o) => o.value === v)?.label ?? v
 export const money = (v) => (v === null || v === undefined ? '' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))

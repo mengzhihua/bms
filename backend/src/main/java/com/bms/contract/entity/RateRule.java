@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/** 费率规则。priceMode: FIXED 每单固定 / UNIT 单价×数量 / TIERED 阶梯全量 / PROGRESSIVE 累进 */
+/** 费率规则。priceMode: FIXED 每单固定 / UNIT 单价×数量 / TIERED 阶梯全量 / PROGRESSIVE 累进 / FIRST_EXTRA 首重续重 */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("bms_rate_rule")
