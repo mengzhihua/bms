@@ -112,7 +112,7 @@ public class OpenApiController {
     }
 
     /** 子系统直连用 WMS 仓号，结算单仍记控制塔仓号。 */
-    static String warehouse(String code) {
+    public static String warehouse(String code) {
         if (code == null) {
             return null;
         }
